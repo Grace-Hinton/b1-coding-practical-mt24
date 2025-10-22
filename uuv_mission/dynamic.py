@@ -75,7 +75,45 @@ class Mission:
 
     @classmethod
     def from_csv(cls, file_name: str):
-        # You are required to implement this method
+        @classmethod
+        def from_csv(cls, file_name: str):
+            """
+            Load mission data from a CSV file. The CSV may have a header with
+            columns 'reference', 'cave_height', 'cave_depth'. If no header is
+            present the first three columns are used in that order.
+            """
+            try:
+                data = np.genfromtxt(file_name, delimiter=',', names=True, dtype=None, encoding=None)
+            except Exception as exc:
+                raise ValueError(f"Could not read CSV file '{file_name}': {exc}")
+
+            if data.dtype.names is None:
+                # No header: assume at least three columns: reference, cave_height, cave_depth
+                arr = np.loadtxt(file_name, delimiter=',')
+                if arr.ndim == 1:
+                    arr = arr.reshape(1, -1)
+                if arr.shape[1] < 3:
+                    raise ValueError("CSV must contain at least three columns: reference, cave_height, cave_depth")
+                reference = arr[:, 0]
+                cave_height = arr[:, 1]
+                cave_depth = arr[:, 2]
+            else:
+                names = data.dtype.names
+                # preferred named columns
+                if {'reference', 'cave_height', 'cave_depth'}.issubset(names):
+                    reference = np.asarray(data['reference'])
+                    cave_height = np.asarray(data['cave_height'])
+                    cave_depth = np.asarray(data['cave_depth'])
+                else:
+                    # fallback: use the first three columns available
+                    reference = np.asarray(data[names[0]])
+                    cave_height = np.asarray(data[names[1]])
+                    cave_depth = np.asarray(data[names[2]])
+
+            if not (len(reference) == len(cave_height) == len(cave_depth)):
+                raise ValueError("Columns must have the same length")
+
+            return cls(np.asarray(reference), np.asarray(cave_height), np.asarray(cave_depth))
         pass
 
 
@@ -97,7 +135,7 @@ class ClosedLoop:
         for t in range(T):
             positions[t] = self.plant.get_position()
             observation_t = self.plant.get_depth()
-            # Call your controller here
+            actions[t] = self.controller(mission.reference[t], observation_t)
             self.plant.transition(actions[t], disturbances[t])
 
         return Trajectory(positions)
